@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>USMS Radio | U.S. Marshals Service</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+/* ══════════════════════════════════════════════════════════
+   DESIGN TOKENS — U.S. Marshals tactical-dark palette
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --bg-base:       #050709;
+  --bg-surface:    #0b0e13;
+  --bg-card:       #0f1318;
+  --bg-elevated:   #141920;
+  --bg-hover:      #1a2029;
+  --border-subtle: #1e2633;
+  --border-active: #2e3d52;
+  --border-glow:   #1e4d82;
+
+  --text-primary:  #e8edf2;
+  --text-secondary:#8fa3b8;
+  --text-muted:    #4a5d70;
+  --text-dim:      #2e3d4d;
+
+  --gold:          #c8a84b;
+  --gold-dark:     #8a6e28;
+  --gold-glow:     rgba(200,168,75,0.18);
+
+  --blue-fed:      #1a5fa8;
+  --blue-bright:   #2979d4;
+  --blue-glow:     rgba(41,121,212,0.2);
+
+  --green-active:  #27ae60;
+  --green-glow:    rgba(39,174,96,0.2);
+  --red-panic:     #c0392b;
+  --red-glow:      rgba(192,57,43,0.3);
+  --orange:        #e67e22;
+  --purple:        #8e44ad;
+  --teal:          #16a085;
+
+  --ptt-active:    #27ae60;
+  --ptt-idle:      #1e4d82;
+
+  --font-mono:     'Share Tech Mono', monospace;
+  --font-display:  'Rajdhani', sans-serif;
+  --font-body:     'Inter', sans-serif;
+
+  --radius-sm:     3px;
+  --radius:        6px;
+  --radius-lg:     10px;
+
+  --shadow-card:   0 2px 12px rgba(0,0,0,0.6);
+  --shadow-glow:   0 0 24px rgba(41,121,212,0.15);
+  --transition:    0.15s ease;
+}
+
+/* ══ RESET & BASE ══ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; border: none; outline: none; }
+input, select, textarea { font-family: inherit; outline: none; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+
+/* ══ LOGIN SCREEN ══ */
+#login-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #0a1220 0%, #050709 70%);
+}
+.login-box {
+  width: 420px; max-width: 95vw;
+  background: var(--bg-card);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: 0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(26,95,168,0.1);
+}
+.login-seal {
+  text-align: center; margin-bottom: 28px;
+}
+.seal-icon {
+  width: 72px; height: 72px;
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; margin: 0 auto 14px;
+  box-shadow: 0 0 30px var(--gold-glow);
+  border: 2px solid var(--gold-dark);
+}
+.login-title {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-transform: uppercase;
+}
+.login-sub {
+  font-size: 11px; color: var(--text-muted);
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-top: 4px;
+}
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block; font-size: 10px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 6px;
+}
+.form-input, .form-select {
+  width: 100%; padding: 10px 14px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  transition: border-color var(--transition);
+}
+.form-input:focus, .form-select:focus {
+  border-color: var(--blue-bright);
+  box-shadow: 0 0 0 2px var(--blue-glow);
+}
+.form-select option { background: var(--bg-card); }
+.btn-login {
+  width: 100%; padding: 13px;
+  background: linear-gradient(135deg, var(--blue-fed), var(--blue-bright));
+  color: #fff; border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 15px; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  margin-top: 8px;
+  transition: all var(--transition);
+  box-shadow: 0 4px 20px var(--blue-glow);
+}
+.btn-login:hover { transform: translateY(-1px); box-shadow: 0 6px 30px var(--blue-glow); }
+.login-disclaimer {
+  text-align: center; margin-top: 20px;
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 1px; text-transform: uppercase;
+  line-height: 1.8;
+}
+
+/* ══ APP LAYOUT ══ */
+#app { display: none; height: 100vh; flex-direction: column; overflow: hidden; }
+#app.visible { display: flex; }
+
+/* TOP BAR */
+.topbar {
+  height: 48px; flex-shrink: 0;
+  display: flex; align-items: center;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 16px;
+  gap: 16px; z-index: 100;
+}
+.topbar-logo {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.topbar-seal {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+.topbar-name {
+  font-family: var(--font-display);
+  font-size: 14px; font-weight: 700;
+  letter-spacing: 2px; color: var(--gold);
+  text-transform: uppercase;
+}
+.topbar-freq {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-muted);
+}
+.topbar-spacer { flex: 1; }
+.topbar-clock {
+  font-family: var(--font-mono);
+  font-size: 13px; color: var(--text-secondary);
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  padding: 4px 10px; border-radius: var(--radius-sm);
+}
+.topbar-unit {
+  display: flex; align-items: center; gap: 8px;
+}
+.unit-badge {
+  background: var(--blue-fed);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600;
+  padding: 3px 8px; border-radius: var(--radius-sm);
+  letter-spacing: 1px;
+}
+.unit-callsign {
+  font-family: var(--font-mono); font-size: 13px;
+  color: var(--text-primary);
+}
+.status-indicator {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green-active);
+  box-shadow: 0 0 6px var(--green-glow);
+  animation: pulse-green 2s infinite;
+}
+@keyframes pulse-green {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.btn-logout {
+  background: none; color: var(--text-muted);
+  font-size: 11px; padding: 4px 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.btn-logout:hover { color: var(--red-panic); border-color: var(--red-panic); }
+
+/* MAIN CONTENT */
+.main-content {
+  flex: 1; display: flex; overflow: hidden;
+}
+
+/* ══ LEFT PANEL — CHANNELS ══ */
+.panel-channels {
+  width: 220px; flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.panel-header {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.panel-title {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 600;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.channel-list { flex: 1; overflow-y: auto; padding: 8px; }
+.channel-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition);
+  margin-bottom: 2px;
+  position: relative;
+}
+.channel-item:hover { background: var(--bg-hover); }
+.channel-item.active {
+  background: var(--bg-elevated);
+  border-color: var(--border-glow);
+  box-shadow: inset 3px 0 0 var(--blue-bright);
+}
+.channel-item.transmitting {
+  border-color: var(--green-active) !important;
+  box-shadow: inset 3px 0 0 var(--green-active), 0 0 12px rgba(39,174,96,0.15) !important;
+}
+.channel-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.channel-info { flex: 1; min-width: 0; }
+.channel-name {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--text-primary); letter-spacing: 0.5px;
+}
+.channel-freq { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); }
+.channel-badge {
+  font-family: var(--font-mono); font-size: 8px;
+  padding: 1px 4px; border-radius: 2px;
+  background: var(--bg-base);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+.channel-badge.ch-active { background: var(--blue-fed); color: #fff; border-color: transparent; }
+.monitor-btn {
+  width: 18px; height: 18px;
+  background: none; border: 1px solid var(--border-subtle);
+  border-radius: 2px; color: var(--text-muted);
+  font-size: 9px; display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.monitor-btn:hover { border-color: var(--gold); color: var(--gold); }
+.monitor-btn.monitoring { background: var(--gold-dark); border-color: var(--gold); color: var(--gold); }
+.tx-indicator {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green-active);
+  box-shadow: 0 0 6px var(--green-glow);
+  display: none;
+}
+.channel-item.transmitting .tx-indicator { display: block; }
+
+/* STATUS PANEL */
+.status-panel {
+  border-top: 1px solid var(--border-subtle);
+  padding: 8px;
+}
+.status-label {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 6px;
+  padding: 0 4px;
+}
+.status-select {
+  width: 100%; padding: 7px 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono); font-size: 10px;
+}
+.current-status {
+  margin-top: 6px; padding: 6px 10px;
+  background: var(--bg-base);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--green-active);
+  text-align: center;
+}
+
+/* ══ CENTER — MAIN RADIO ══ */
+.panel-main {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; min-width: 0;
+}
+
+/* PTT ZONE */
+.ptt-zone {
+  flex-shrink: 0; padding: 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center; gap: 16px;
+}
+.ptt-btn {
+  width: 90px; height: 90px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #1e4d82, #0d2340);
+  border: 3px solid var(--blue-fed);
+  color: #fff; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+  font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  box-shadow: 0 0 20px var(--blue-glow), inset 0 2px 4px rgba(255,255,255,0.05);
+  transition: all 0.08s ease;
+  user-select: none; flex-shrink: 0;
+}
+.ptt-btn .ptt-icon { font-size: 22px; }
+.ptt-btn:active, .ptt-btn.active {
+  background: radial-gradient(circle at 40% 35%, #1a6b2e, #0d3318);
+  border-color: var(--green-active);
+  box-shadow: 0 0 30px var(--green-glow), inset 0 2px 4px rgba(255,255,255,0.05);
+  transform: scale(0.96);
+}
+.ptt-btn.active { animation: ptt-pulse 0.6s infinite alternate; }
+@keyframes ptt-pulse {
+  from { box-shadow: 0 0 20px var(--green-glow); }
+  to   { box-shadow: 0 0 40px rgba(39,174,96,0.5); }
+}
+.ptt-info { flex: 1; min-width: 0; }
+.ptt-channel-display {
+  font-family: var(--font-mono); font-size: 22px; font-weight: 600;
+  color: var(--text-primary); letter-spacing: 1px;
+}
+.ptt-freq-display {
+  font-family: var(--font-mono); font-size: 12px;
+  color: var(--blue-bright); letter-spacing: 2px;
+  margin-top: 2px;
+}
+.ptt-status {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--text-muted); letter-spacing: 1px;
+  margin-top: 6px;
+}
+.ptt-status.tx-active { color: var(--green-active); animation: blink 0.5s steps(1) infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.ptt-key-hint {
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-dim);
+  margin-top: 4px; letter-spacing: 1px;
+}
+.ptt-vu {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 40px; width: 60px; flex-shrink: 0;
+}
+.vu-bar {
+  flex: 1; background: var(--border-subtle);
+  border-radius: 1px; transition: height 0.05s ease;
+  min-height: 2px;
+}
+
+/* PANIC */
+.panic-btn {
+  padding: 0; width: 80px; height: 50px;
+  background: linear-gradient(135deg, #7b1a1a, var(--red-panic));
+  border: 2px solid #e74c3c; border-radius: var(--radius);
+  color: #fff; font-family: var(--font-display);
+  font-size: 14px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; flex-shrink: 0;
+  box-shadow: 0 0 20px var(--red-glow);
+  transition: all var(--transition);
+  line-height: 1;
+}
+.panic-btn:hover { transform: scale(1.05); box-shadow: 0 0 35px var(--red-glow); }
+.panic-btn.panic-active {
+  background: linear-gradient(135deg, var(--red-panic), #e74c3c);
+  animation: panic-flash 0.4s infinite alternate;
+}
+@keyframes panic-flash {
+  from { box-shadow: 0 0 20px var(--red-glow); }
+  to   { box-shadow: 0 0 50px rgba(231,76,60,0.8); }
+}
+.panic-label { font-size: 8px; letter-spacing: 3px; display: block; }
+
+/* TRANSMISSION LOG */
+.log-area {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.log-msg {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  font-size: 12px; line-height: 1.4;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+.log-msg.type-system {
+  border-left: 3px solid var(--text-muted);
+  background: transparent; border-color: transparent;
+  padding: 4px 10px;
+}
+.log-msg.type-system.join { color: var(--green-active); }
+.log-msg.type-system.leave { color: var(--text-muted); }
+.log-msg.type-ptt {
+  border-left-color: var(--blue-bright);
+}
+.log-msg.type-dispatch {
+  border-left-color: var(--gold);
+  background: var(--bg-elevated);
+}
+.log-msg.type-panic {
+  border-left-color: var(--red-panic);
+  background: rgba(192,57,43,0.08);
+  border-color: rgba(192,57,43,0.3);
+}
+.log-msg.type-status {
+  border-left-color: var(--green-active);
+}
+.log-time {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--text-dim); flex-shrink: 0; margin-top: 2px;
+  white-space: nowrap;
+}
+.log-callsign {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  color: var(--gold); flex-shrink: 0; white-space: nowrap;
+}
+.log-content { flex: 1; color: var(--text-secondary); }
+.log-channel-tag {
+  font-family: var(--font-mono); font-size: 9px;
+  padding: 1px 5px; border-radius: 2px;
+  display: inline-block; margin-right: 6px;
+  background: var(--bg-base); border: 1px solid var(--border-subtle);
+  color: var(--text-muted); flex-shrink: 0;
+}
+
+/* DISPATCH COMPOSER */
+.dispatch-bar {
+  flex-shrink: 0; padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  display: none; gap: 8px; align-items: center;
+}
+.dispatch-bar.visible { display: flex; }
+.dispatch-input {
+  flex: 1; padding: 8px 12px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono); font-size: 12px;
+}
+.dispatch-ch-sel {
+  padding: 8px; background: var(--bg-base);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px;
+  width: 130px;
+}
+.btn-send {
+  padding: 8px 16px; background: var(--gold-dark);
+  color: var(--gold); border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 1px; border: 1px solid var(--gold-dark);
+  transition: all var(--transition);
+}
+.btn-send:hover { background: var(--gold); color: var(--bg-base); }
+
+/* ══ RIGHT PANEL — UNITS & DISPATCH ══ */
+.panel-right {
+  width: 260px; flex-shrink: 0;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.right-tabs {
+  display: flex; border-bottom: 1px solid var(--border-subtle);
+}
+.right-tab {
+  flex: 1; padding: 10px; text-align: center;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); cursor: pointer; background: none;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition);
+}
+.right-tab:hover { color: var(--text-secondary); }
+.right-tab.active { color: var(--blue-bright); border-bottom-color: var(--blue-bright); }
+.tab-panel { flex: 1; overflow-y: auto; display: none; }
+.tab-panel.active { display: block; }
+
+/* UNITS TAB */
+.units-section-header {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); padding: 10px 12px 4px;
+}
+.unit-card {
+  margin: 4px 8px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: default;
+  transition: border-color var(--transition);
+}
+.unit-card:hover { border-color: var(--border-active); }
+.unit-card.panic-unit {
+  border-color: var(--red-panic);
+  background: rgba(192,57,43,0.06);
+  animation: panic-card 0.5s infinite alternate;
+}
+@keyframes panic-card {
+  from { box-shadow: none; }
+  to   { box-shadow: 0 0 12px var(--red-glow); }
+}
+.unit-card-header {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+}
+.unit-card-badge {
+  font-family: var(--font-mono); font-size: 9px;
+  padding: 2px 5px; border-radius: 2px;
+  background: var(--blue-fed); color: #fff; flex-shrink: 0;
+}
+.unit-card-callsign {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  color: var(--text-primary);
+}
+.unit-card-role { font-size: 10px; color: var(--text-muted); flex: 1; text-align: right; }
+.unit-card-meta {
+  display: flex; gap: 8px; align-items: center;
+}
+.unit-status-code {
+  font-family: var(--font-mono); font-size: 10px;
+  padding: 2px 6px; border-radius: 2px;
+}
+.unit-status-code.s-green { background: rgba(39,174,96,0.15); color: var(--green-active); border: 1px solid rgba(39,174,96,0.3); }
+.unit-status-code.s-red   { background: rgba(192,57,43,0.15); color: #e74c3c;             border: 1px solid rgba(192,57,43,0.3); }
+.unit-status-code.s-gray  { background: rgba(74,93,112,0.2);  color: var(--text-muted);    border: 1px solid var(--border-subtle); }
+.unit-channel-tag {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--text-muted);
+}
+.unit-tx-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green-active);
+  display: none; margin-left: auto;
+}
+.unit-card.transmitting .unit-tx-dot { display: block; box-shadow: 0 0 6px var(--green-glow); }
+.unit-count-badge {
+  display: inline-block; background: var(--blue-fed); color: #fff;
+  font-family: var(--font-mono); font-size: 9px;
+  padding: 1px 5px; border-radius: 8px; margin-left: 6px;
+}
+
+/* PANIC ALERT BANNER */
+.panic-banner {
+  display: none;
+  background: var(--red-panic);
+  padding: 10px 12px;
+  font-family: var(--font-mono); font-size: 11px;
+  color: #fff; letter-spacing: 1px;
+  border-bottom: 1px solid #e74c3c;
+  animation: panic-flash 0.4s infinite alternate;
+}
+.panic-banner.active { display: block; }
+.panic-banner-title { font-weight: 700; margin-bottom: 2px; letter-spacing: 2px; }
+
+/* DISPATCH TAB */
+.dispatch-console {
+  padding: 10px; display: flex; flex-direction: column; gap: 8px;
+}
+.quick-dispatch {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+}
+.qd-btn {
+  padding: 7px 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.5px; text-align: center;
+  transition: all var(--transition);
+}
+.qd-btn:hover { border-color: var(--border-active); color: var(--text-primary); background: var(--bg-elevated); }
+.dispatch-ch-label {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); margin-top: 4px;
+}
+.dispatch-textarea {
+  width: 100%; height: 70px; resize: none;
+  background: var(--bg-base);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 8px; line-height: 1.4;
+}
+.dispatch-actions { display: flex; gap: 6px; }
+.dispatch-ch-picker {
+  flex: 1; padding: 7px 8px;
+  background: var(--bg-base); border: 1px solid var(--border-active);
+  border-radius: var(--radius-sm); color: var(--text-secondary);
+  font-family: var(--font-mono); font-size: 10px;
+}
+.btn-dispatch-send {
+  padding: 7px 12px; background: var(--gold-dark);
+  color: var(--gold); border: 1px solid var(--gold-dark);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 10px;
+  font-weight: 600; letter-spacing: 1px;
+  transition: all var(--transition);
+}
+.btn-dispatch-send:hover { background: var(--gold); color: #000; }
+
+/* APB / BOLO SECTION */
+.apb-section {
+  border-top: 1px solid var(--border-subtle);
+  padding: 10px;
+}
+.apb-title {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 6px;
+}
+.apb-preset-list { display: flex; flex-direction: column; gap: 3px; }
+.apb-preset {
+  padding: 6px 8px; background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--text-secondary); cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+}
+.apb-preset:hover { border-color: var(--orange); color: var(--orange); background: rgba(230,126,34,0.05); }
+
+/* ══ PANIC OVERLAY ══ */
+.panic-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(192,57,43,0.12);
+  pointer-events: none;
+  border: 3px solid var(--red-panic);
+  animation: panic-overlay-flash 0.5s infinite alternate;
+}
+.panic-overlay.active { display: block; }
+@keyframes panic-overlay-flash {
+  from { opacity: 0.4; }
+  to   { opacity: 1; }
+}
+
+/* ══ TX OVERLAY — shows over log during transmission ══ */
+.tx-overlay {
+  display: none;
+  position: sticky; top: 0; z-index: 10;
+  background: linear-gradient(135deg, rgba(13,35,24,0.98), rgba(10,30,50,0.98));
+  border: 1px solid var(--green-active);
+  border-radius: var(--radius);
+  margin: 8px; padding: 10px 14px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 0 24px var(--green-glow);
+}
+.tx-overlay.active { display: flex; align-items: center; gap: 12px; }
+.tx-unit-name { font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--green-active); }
+.tx-on-channel { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+.tx-waveform { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.tx-bar {
+  width: 3px; border-radius: 1px;
+  background: var(--green-active);
+  animation: wave 0.6s ease infinite;
+}
+.tx-bar:nth-child(1) { height: 8px;  animation-delay: 0s; }
+.tx-bar:nth-child(2) { height: 16px; animation-delay: 0.1s; }
+.tx-bar:nth-child(3) { height: 12px; animation-delay: 0.2s; }
+.tx-bar:nth-child(4) { height: 20px; animation-delay: 0.3s; }
+.tx-bar:nth-child(5) { height: 10px; animation-delay: 0.4s; }
+.tx-bar:nth-child(6) { height: 14px; animation-delay: 0.15s; }
+@keyframes wave {
+  0%,100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+/* ══ MOBILE ══ */
+@media (max-width: 768px) {
+  .panel-channels { width: 180px; }
+  .panel-right { width: 0; display: none; }
+  .topbar-name { display: none; }
+  .ptt-btn { width: 76px; height: 76px; }
+  .ptt-zone { padding: 10px 12px; gap: 10px; }
+}
+@media (max-width: 540px) {
+  .panel-channels { position: absolute; left: 0; top: 48px; bottom: 0; z-index: 50; transform: translateX(-100%); transition: transform 0.2s; }
+  .panel-channels.open { transform: translateX(0); box-shadow: 4px 0 20px rgba(0,0,0,0.8); }
+  .topbar { padding: 0 10px; }
+  .ptt-zone { flex-wrap: wrap; }
+  .ptt-channel-display { font-size: 16px; }
+}
+
+/* ══ TOASTS ══ */
+.toast-container {
+  position: fixed; top: 56px; right: 12px; z-index: 999;
+  display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+.toast {
+  padding: 10px 14px; border-radius: var(--radius);
+  font-family: var(--font-mono); font-size: 11px;
+  border: 1px solid; max-width: 280px;
+  animation: toastIn 0.2s ease;
+  pointer-events: all;
+}
+@keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+.toast.info  { background: var(--bg-elevated); border-color: var(--blue-bright); color: var(--text-primary); }
+.toast.warn  { background: rgba(230,126,34,0.1); border-color: var(--orange); color: var(--orange); }
+.toast.panic { background: rgba(192,57,43,0.15); border-color: var(--red-panic); color: #e74c3c; }
+.toast.ok    { background: rgba(39,174,96,0.1); border-color: var(--green-active); color: var(--green-active); }
+
+/* ══ MISC UTILITIES ══ */
+.hidden { display: none !important; }
+.separator { border: none; border-top: 1px solid var(--border-subtle); margin: 6px 0; }
+.mobile-menu-btn {
+  display: none; background: none; color: var(--text-secondary); font-size: 16px;
+  border: 1px solid var(--border-subtle); padding: 4px 8px; border-radius: var(--radius-sm);
+}
+@media (max-width: 540px) { .mobile-menu-btn { display: flex; align-items: center; } }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ LOGIN ══════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-seal">
+      <div class="seal-icon">⚖️</div>
+      <div class="login-title">U.S. Marshals Service</div>
+      <div class="login-sub">Law Enforcement Radio System</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Callsign / Unit ID</label>
+      <input class="form-input" id="inp-callsign" placeholder="e.g. MARSHAL-7" maxlength="20" autocomplete="off"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Display Name</label>
+      <input class="form-input" id="inp-username" placeholder="Deputy Smith" maxlength="30" autocomplete="off"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Role / Rank</label>
+      <select class="form-select" id="inp-role">
+        <option value="dispatch">Dispatch</option>
+        <option value="deputy" selected>Deputy Marshal</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="deputy_director">Deputy Director</option>
+        <option value="director">Director</option>
+      </select>
+    </div>
+    <button class="btn-login" id="btn-login">⚡ AUTHENTICATE &amp; CONNECT</button>
+    <div class="login-disclaimer">
+      AUTHORIZED PERSONNEL ONLY<br/>
+      ALL TRANSMISSIONS ARE LOGGED AND MONITORED<br/>
+      USMS ROBLOX GROUP — OFFICIAL USE ONLY
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ APP ══════════════ -->
+<div id="app">
+
+  <!-- PANIC OVERLAY -->
+  <div class="panic-overlay" id="panic-overlay"></div>
+
+  <!-- TOASTS -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <button class="mobile-menu-btn" id="mobile-menu-btn">☰</button>
+    <div class="topbar-logo">
+      <div class="topbar-seal">⚖️</div>
+      <div>
+        <div class="topbar-name">U.S. MARSHALS SERVICE</div>
+        <div class="topbar-freq" id="topbar-freq">RADIO SYSTEM v2.0</div>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-clock" id="clock">00:00:00 UTC</div>
+    <div class="topbar-unit">
+      <div class="status-indicator" id="conn-indicator"></div>
+      <div class="unit-badge" id="topbar-badge">---</div>
+      <div class="unit-callsign" id="topbar-callsign">NOT LOGGED IN</div>
+    </div>
+    <button class="btn-logout" id="btn-logout">DISCONNECT</button>
+  </header>
+
+  <!-- MAIN -->
+  <div class="main-content">
+
+    <!-- LEFT: CHANNELS -->
+    <aside class="panel-channels" id="channels-panel">
+      <div class="panel-header">
+        <div class="panel-title">Radio Channels</div>
+      </div>
+      <div class="channel-list" id="channel-list"><!-- populated by JS --></div>
+      <div class="status-panel">
+        <div class="status-label">Unit Status</div>
+        <select class="status-select" id="status-select">
+          <option value="10-8">10-8 — In Service</option>
+          <option value="10-6">10-6 — Busy</option>
+          <option value="10-7">10-7 — Out of Service</option>
+          <option value="10-10">10-10 — Off Duty</option>
+          <option value="10-17">10-17 — En Route</option>
+          <option value="10-19">10-19 — Return to Office</option>
+          <option value="10-20">10-20 — Location</option>
+          <option value="10-23">10-23 — On Scene</option>
+          <option value="10-97">10-97 — At Station</option>
+          <option value="10-99">10-99 — EMERGENCY</option>
+        </select>
+        <div class="current-status" id="current-status">10-8 ● IN SERVICE</div>
+      </div>
+    </aside>
+
+    <!-- CENTER: MAIN RADIO -->
+    <main class="panel-main">
+      <!-- PTT ZONE -->
+      <div class="ptt-zone">
+        <button class="ptt-btn" id="ptt-btn">
+          <span class="ptt-icon">🎙</span>
+          <span>PTT</span>
+        </button>
+        <div class="ptt-info">
+          <div class="ptt-channel-display" id="ptt-channel-name">DISPATCH</div>
+          <div class="ptt-freq-display" id="ptt-channel-freq">155.490 MHz</div>
+          <div class="ptt-status" id="ptt-status">MONITORING — PRESS PTT TO TRANSMIT</div>
+          <div class="ptt-key-hint">HOLD [SPACE] TO TRANSMIT</div>
+        </div>
+        <div class="ptt-vu" id="vu-meter">
+          <div class="vu-bar"></div>
+          <div class="vu-bar"></div>
+          <div class="vu-bar"></div>
+          <div class="vu-bar"></div>
+          <div class="vu-bar"></div>
+          <div class="vu-bar"></div>
+          <div class="vu-bar"></div>
+          <div class="vu-bar"></div>
+        </div>
+        <button class="panic-btn" id="panic-btn">
+          <span class="panic-label">PANIC</span>
+          🚨
+        </button>
+      </div>
+
+      <!-- TX OVERLAY (who is talking) -->
+      <div class="tx-overlay" id="tx-overlay">
+        <div>
+          <div class="tx-unit-name" id="tx-unit-name">MARSHAL-7</div>
+          <div class="tx-on-channel" id="tx-on-channel">● COMMAND</div>
+        </div>
+        <div class="tx-waveform">
+          <div class="tx-bar"></div>
+          <div class="tx-bar"></div>
+          <div class="tx-bar"></div>
+          <div class="tx-bar"></div>
+          <div class="tx-bar"></div>
+          <div class="tx-bar"></div>
+        </div>
+      </div>
+
+      <!-- LOG -->
+      <div class="log-area" id="log-area">
+        <div class="log-msg type-system join">
+          <span class="log-time">--:--:--</span>
+          <span class="log-content">USMS Radio System initialized. Awaiting connection...</span>
+        </div>
+      </div>
+
+      <!-- DISPATCH BAR (for dispatch/supervisor roles) -->
+      <div class="dispatch-bar" id="dispatch-bar">
+        <select class="dispatch-ch-sel" id="dispatch-ch-sel"><!-- populated by JS --></select>
+        <input class="dispatch-input" id="dispatch-input" placeholder="Enter dispatch message..." maxlength="200"/>
+        <button class="btn-send" id="btn-dispatch-send">SEND</button>
+      </div>
+    </main>
+
+    <!-- RIGHT: UNITS / DISPATCH -->
+    <aside class="panel-right">
+      <div class="panic-banner" id="panic-banner">
+        <div class="panic-banner-title">⚠ PANIC ALERT ACTIVE</div>
+        <div id="panic-banner-detail">Unit in distress</div>
+      </div>
+      <div class="right-tabs">
+        <button class="right-tab active" data-tab="units">UNITS <span class="unit-count-badge" id="unit-count">0</span></button>
+        <button class="right-tab" data-tab="dispatch">CONSOLE</button>
+      </div>
+
+      <!-- UNITS TAB -->
+      <div class="tab-panel active" id="tab-units">
+        <div id="units-list">
+          <div style="padding:20px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:10px;text-align:center;">
+            No units online
+          </div>
+        </div>
+      </div>
+
+      <!-- DISPATCH CONSOLE TAB -->
+      <div class="tab-panel" id="tab-dispatch">
+        <div class="dispatch-console">
+          <div class="dispatch-ch-label">Quick Dispatch</div>
+          <div class="quick-dispatch" id="quick-dispatch">
+            <button class="qd-btn" data-msg="All units, be advised">ALL UNITS ADVISED</button>
+            <button class="qd-btn" data-msg="Signal clear, all units stand by">SIGNAL CLEAR</button>
+            <button class="qd-btn" data-msg="Requesting backup at current location">REQ BACKUP</button>
+            <button class="qd-btn" data-msg="Traffic stop in progress">TRAFFIC STOP</button>
+            <button class="qd-btn" data-msg="Suspect in custody, transporting">IN CUSTODY</button>
+            <button class="qd-btn" data-msg="Scene clear, returning to service">SCENE CLEAR</button>
+            <button class="qd-btn" data-msg="All units, roll call">ROLL CALL</button>
+            <button class="qd-btn" data-msg="Code 4, situation handled">CODE 4</button>
+          </div>
+          <div class="dispatch-ch-label" style="margin-top:8px">Message</div>
+          <textarea class="dispatch-textarea" id="right-dispatch-input" placeholder="Enter dispatch message or select quick option above..."></textarea>
+          <div class="dispatch-actions">
+            <select class="dispatch-ch-picker" id="right-dispatch-ch"><!-- populated --></select>
+            <button class="btn-dispatch-send" id="right-btn-send">TX</button>
+          </div>
+        </div>
+        <div class="apb-section">
+          <div class="apb-title">BOLO / APB Templates</div>
+          <div class="apb-preset-list">
+            <button class="apb-preset" data-msg="BOLO — Wanted fugitive in the area. All units use caution.">BOLO — Fugitive Alert</button>
+            <button class="apb-preset" data-msg="APB — Suspicious vehicle reported. Plates unknown. Exercise caution.">APB — Suspicious Vehicle</button>
+            <button class="apb-preset" data-msg="NOTIFICATION — Court transport in progress. Secure route, all units hold positions.">Court Transport Alert</button>
+            <button class="apb-preset" data-msg="ADVISORY — Elevated threat level. All units maintain heightened awareness.">Elevated Threat Level</button>
+            <button class="apb-preset" data-msg="CODE 1 — Situation urgent. Respond immediately to dispatch.">CODE 1 — Urgent Response</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  USMS RADIO CLIENT — v2.0
+// ══════════════════════════════════════════════════════════════
+
+const STATE = {
+  socket: null,
+  unit: null,
+  channels: [],
+  roles: {},
+  statuses: {},
+  activeChannel: 'dispatch',
+  monitorChannels: [],
+  isPTT: false,
+  isPanic: false,
+  transmittingUnits: new Map(), // socketId → channelId
+  peerConnections: new Map(),   // socketId → RTCPeerConnection
+  localStream: null,
+  audioCtx: null,
+  analyser: null,
+  vuInterval: null,
+  vuActive: false,
+};
+
+// ── Audio Engine ───────────────────────────────────────────────
+function getAudioCtx() {
+  if (!STATE.audioCtx) STATE.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (STATE.audioCtx.state === 'suspended') STATE.audioCtx.resume();
+  return STATE.audioCtx;
+}
+
+function playTone(opts) {
+  const ctx = getAudioCtx();
+  const { freq = 1200, duration = 0.08, volume = 0.3, type = 'square', detune = 0 } = opts;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = freq;
+  filter.Q.value = 2;
+  osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+  osc.type = type; osc.frequency.value = freq;
+  if (detune) osc.detune.value = detune;
+  gain.gain.setValueAtTime(0, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
+  gain.gain.setValueAtTime(volume, ctx.currentTime + duration - 0.02);
+  gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration + 0.01);
+}
+
+function playRadioSqwelch(type = 'open') {
+  // Authentic squelch: pink noise burst + tone
+  const ctx = getAudioCtx();
+  const bufSize = ctx.sampleRate * 0.04;
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for (let i = 0; i < bufSize; i++) {
+    const wn = Math.random() * 2 - 1;
+    b0 = 0.99886*b0 + wn*0.0555179; b1 = 0.99332*b1 + wn*0.0750759;
+    b2 = 0.96900*b2 + wn*0.1538520; b3 = 0.86650*b3 + wn*0.3104856;
+    b4 = 0.55000*b4 + wn*0.5329522; b5 = -0.7616*b5 - wn*0.0168980;
+    data[i] = (b0+b1+b2+b3+b4+b5+b6+wn*0.5362) * 0.11;
+    b6 = wn * 0.115926;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(type === 'open' ? 0.5 : 0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+  src.connect(gain); gain.connect(ctx.destination);
+  src.start();
+  // Beep
+  if (type === 'open') {
+    playTone({ freq: 1800, duration: 0.06, volume: 0.25, type: 'sine' });
+  } else {
+    setTimeout(() => playTone({ freq: 900, duration: 0.1, volume: 0.2, type: 'sine' }), 30);
+  }
+}
+
+function playPTTOpen()  { playRadioSqwelch('open'); }
+function playPTTClose() { playRadioSqwelch('close'); }
+
+function playPanic() {
+  const ctx = getAudioCtx();
+  let t = ctx.currentTime;
+  for (let i = 0; i < 6; i++) {
+    playToneAt(ctx, 880, t + i*0.18, 0.12, 0.6);
+    playToneAt(ctx, 1100, t + i*0.18 + 0.09, 0.09, 0.5);
+  }
+}
+function playToneAt(ctx, freq, when, dur, vol) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.frequency.value = freq; osc.type = 'square';
+  gain.gain.setValueAtTime(0, when);
+  gain.gain.linearRampToValueAtTime(vol, when + 0.01);
+  gain.gain.linearRampToValueAtTime(0, when + dur);
+  osc.start(when); osc.stop(when + dur + 0.01);
+}
+
+function playAck() {
+  playTone({ freq: 1400, duration: 0.05, volume: 0.2, type: 'sine' });
+  setTimeout(() => playTone({ freq: 1800, duration: 0.05, volume: 0.2, type: 'sine' }), 60);
+}
+
+function playDispatchMsg() {
+  playTone({ freq: 600, duration: 0.07, volume: 0.3, type: 'sine' });
+  setTimeout(() => playTone({ freq: 800, duration: 0.07, volume: 0.3, type: 'sine' }), 80);
+}
+
+// ── VU Meter ──────────────────────────────────────────────────
+function startVU(stream) {
+  const ctx = getAudioCtx();
+  const src = ctx.createMediaStreamSource(stream);
+  STATE.analyser = ctx.createAnalyser();
+  STATE.analyser.fftSize = 64;
+  src.connect(STATE.analyser);
+  const bars = document.querySelectorAll('.vu-bar');
+  const data = new Uint8Array(STATE.analyser.frequencyBinCount);
+  STATE.vuActive = true;
+  function update() {
+    if (!STATE.vuActive) return;
+    STATE.analyser.getByteFrequencyData(data);
+    bars.forEach((bar, i) => {
+      const val = data[i * 2] || 0;
+      bar.style.height = Math.max(4, (val / 255) * 36) + 'px';
+      bar.style.background = val > 180 ? 'var(--red-panic)' : val > 100 ? 'var(--gold)' : 'var(--green-active)';
+    });
+    requestAnimationFrame(update);
+  }
+  update();
+}
+function stopVU() {
+  STATE.vuActive = false;
+  document.querySelectorAll('.vu-bar').forEach(b => { b.style.height = '4px'; b.style.background = 'var(--border-subtle)'; });
+}
+
+// ── Clock ─────────────────────────────────────────────────────
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toUTCString().split(' ')[4] + ' UTC';
+}, 1000);
+
+// ── Toast ─────────────────────────────────────────────────────
+function toast(msg, type = 'info', dur = 3500) {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), dur);
+}
+
+// ── Log ───────────────────────────────────────────────────────
+function addLog(entry) {
+  const { type = 'system', callsign, channel, content, ts, subtype } = entry;
+  const el = document.createElement('div');
+  el.className = `log-msg type-${type}${subtype ? ' ' + subtype : ''}`;
+  const time = ts ? new Date(ts).toUTCString().split(' ')[4] : '--:--:--';
+  const chName = STATE.channels.find(c => c.id === channel)?.name || channel || '';
+
+  if (type === 'system') {
+    el.innerHTML = `<span class="log-time">${time}</span><span class="log-content">${escHtml(content)}</span>`;
+  } else {
+    el.innerHTML = `
+      <span class="log-time">${time}</span>
+      ${callsign ? `<span class="log-callsign">${escHtml(callsign)}</span>` : ''}
+      ${chName ? `<span class="log-channel-tag">${escHtml(chName)}</span>` : ''}
+      <span class="log-content">${escHtml(content)}</span>
+    `;
+  }
+  const area = document.getElementById('log-area');
+  area.appendChild(el);
+  area.scrollTop = area.scrollHeight;
+  // keep log trim
+  while (area.children.length > 150) area.removeChild(area.firstChild);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Channel UI ────────────────────────────────────────────────
+function buildChannelList() {
+  const list = document.getElementById('channel-list');
+  list.innerHTML = '';
+  STATE.channels.forEach(ch => {
+    const isActive = ch.id === STATE.activeChannel;
+    const isMonitor = STATE.monitorChannels.includes(ch.id);
+    const div = document.createElement('div');
+    div.className = `channel-item${isActive ? ' active' : ''}`;
+    div.dataset.chId = ch.id;
+    div.innerHTML = `
+      <div class="channel-dot" style="background:${ch.color}"></div>
+      <div class="channel-info">
+        <div class="channel-name">${ch.name}</div>
+        <div class="channel-freq">${ch.freq} MHz</div>
+      </div>
+      <div class="tx-indicator"></div>
+      <div class="channel-badge${isActive ? ' ch-active' : ''}">${isActive ? 'ACTIVE' : ''}</div>
+      <button class="monitor-btn${isMonitor ? ' monitoring' : ''}" data-ch="${ch.id}" title="Monitor channel">👁</button>
+    `;
+    div.addEventListener('click', (e) => {
+      if (e.target.classList.contains('monitor-btn')) return;
+      switchChannel(ch.id);
+    });
+    div.querySelector('.monitor-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      STATE.socket.emit('monitor_toggle', { channelId: ch.id });
+    });
+    list.appendChild(div);
+  });
+
+  // Populate dispatch channel selectors
+  ['dispatch-ch-sel', 'right-dispatch-ch'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = STATE.channels.map(c => `<option value="${c.id}">${c.name} (${c.freq})</option>`).join('');
+    el.value = STATE.activeChannel;
+  });
+}
+
+function updateChannelActive() {
+  document.querySelectorAll('.channel-item').forEach(item => {
+    const id = item.dataset.chId;
+    const isActive = id === STATE.activeChannel;
+    item.classList.toggle('active', isActive);
+    const badge = item.querySelector('.channel-badge');
+    badge.textContent = isActive ? 'ACTIVE' : '';
+    badge.classList.toggle('ch-active', isActive);
+  });
+  const ch = STATE.channels.find(c => c.id === STATE.activeChannel);
+  if (ch) {
+    document.getElementById('ptt-channel-name').textContent = ch.name;
+    document.getElementById('ptt-channel-freq').textContent = ch.freq + ' MHz';
+    document.getElementById('topbar-freq').textContent = ch.freq + ' MHz · ' + ch.name;
+  }
+}
+
+function setChannelTransmitting(chId, active) {
+  const item = document.querySelector(`.channel-item[data-ch-id="${chId}"]`);
+  if (item) item.classList.toggle('transmitting', active);
+  // Also find by data-ch-id or data-chId
+  document.querySelectorAll('.channel-item').forEach(el => {
+    if (el.dataset.chId === chId) el.classList.toggle('transmitting', active);
+  });
+}
+
+// ── Switch Channel ────────────────────────────────────────────
+function switchChannel(chId) {
+  if (!STATE.socket || !STATE.unit) return;
+  STATE.activeChannel = chId;
+  STATE.socket.emit('switch_channel', { channelId: chId });
+  updateChannelActive();
+  addLog({ type: 'system', content: `Switched to channel: ${STATE.channels.find(c=>c.id===chId)?.name || chId}`, ts: Date.now() });
+  playAck();
+  ['dispatch-ch-sel','right-dispatch-ch'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = chId;
+  });
+}
+
+// ── Units UI ──────────────────────────────────────────────────
+function updateUnitsUI(units) {
+  const list = document.getElementById('units-list');
+  document.getElementById('unit-count').textContent = units.length;
+  if (!units.length) {
+    list.innerHTML = '<div style="padding:20px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:10px;text-align:center;">No units online</div>';
+    return;
+  }
+  // Group by role level
+  const sorted = [...units].sort((a, b) => {
+    const rl = STATE.roles;
+    return (rl[b?.role]?.level || 0) - (rl[a?.role]?.level || 0);
+  });
+  list.innerHTML = '';
+  sorted.forEach(u => {
+    const isPanic = u.status === '10-99';
+    const roleInfo = STATE.roles[u.role] || {};
+    const isTx = STATE.transmittingUnits.has(u.id);
+    const card = document.createElement('div');
+    card.className = `unit-card${isPanic ? ' panic-unit' : ''}${isTx ? ' transmitting' : ''}`;
+    card.dataset.uid = u.id;
+    const statusClass = isPanic ? 's-red' : u.status === '10-8' || u.status === '10-23' ? 's-green' : 's-gray';
+    const chName = STATE.channels.find(c => c.id === u.channel)?.name || u.channel || '?';
+    card.innerHTML = `
+      <div class="unit-card-header">
+        <span class="unit-card-badge">${escHtml(roleInfo.badge || '?')}</span>
+        <span class="unit-card-callsign">${escHtml(u.callsign)}</span>
+        <span class="unit-card-role">${escHtml(roleInfo.label || u.role)}</span>
+        <div class="unit-tx-dot"></div>
+      </div>
+      <div class="unit-card-meta">
+        <span class="unit-status-code ${statusClass}">${escHtml(u.status)}</span>
+        <span class="unit-channel-tag">▶ ${escHtml(chName)}</span>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+// ── PTT ───────────────────────────────────────────────────────
+async function startPTT() {
+  if (STATE.isPTT || !STATE.socket || !STATE.unit) return;
+  STATE.isPTT = true;
+  const btn = document.getElementById('ptt-btn');
+  btn.classList.add('active');
+  document.getElementById('ptt-status').textContent = '● TRANSMITTING ON ' + (STATE.channels.find(c=>c.id===STATE.activeChannel)?.name || STATE.activeChannel);
+  document.getElementById('ptt-status').classList.add('tx-active');
+  STATE.socket.emit('ptt_start', { channelId: STATE.activeChannel });
+  playPTTOpen();
+  // Mic
+  try {
+    if (!STATE.localStream) {
+      STATE.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    }
+    startVU(STATE.localStream);
+    // Offer to peers on channel
+    // (simplified: broadcast via server; in production use proper WebRTC mesh)
+  } catch (e) {
+    console.warn('Mic not available:', e);
+  }
+  addLog({ type: 'ptt', callsign: STATE.unit.callsign, channel: STATE.activeChannel, content: 'PTT OPEN — transmitting', ts: Date.now() });
+}
+
+function stopPTT() {
+  if (!STATE.isPTT) return;
+  STATE.isPTT = false;
+  const btn = document.getElementById('ptt-btn');
+  btn.classList.remove('active');
+  document.getElementById('ptt-status').textContent = 'MONITORING — PRESS PTT TO TRANSMIT';
+  document.getElementById('ptt-status').classList.remove('tx-active');
+  STATE.socket.emit('ptt_end', { channelId: STATE.activeChannel });
+  playPTTClose();
+  stopVU();
+  addLog({ type: 'ptt', callsign: STATE.unit.callsign, channel: STATE.activeChannel, content: 'PTT CLOSED', ts: Date.now() });
+}
+
+// Keyboard PTT
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.repeat && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    e.preventDefault(); startPTT();
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'Space') { e.preventDefault(); stopPTT(); }
+});
+document.getElementById('ptt-btn').addEventListener('mousedown', startPTT);
+document.getElementById('ptt-btn').addEventListener('mouseup', stopPTT);
+document.getElementById('ptt-btn').addEventListener('mouseleave', stopPTT);
+document.getElementById('ptt-btn').addEventListener('touchstart', e => { e.preventDefault(); startPTT(); });
+document.getElementById('ptt-btn').addEventListener('touchend', e => { e.preventDefault(); stopPTT(); });
+
+// ── Panic ─────────────────────────────────────────────────────
+document.getElementById('panic-btn').addEventListener('click', () => {
+  if (!STATE.unit || !STATE.socket) return;
+  if (!STATE.isPanic) {
+    if (!confirm('⚠ ACTIVATE PANIC ALERT?\n\nThis will alert all supervisors and dispatch immediately.')) return;
+    STATE.isPanic = true;
+    STATE.socket.emit('panic');
+    document.getElementById('panic-btn').classList.add('panic-active');
+    playPanic();
+    toast('⚠ PANIC ACTIVATED — All supervisors alerted', 'panic', 8000);
+  } else {
+    STATE.isPanic = false;
+    STATE.socket.emit('panic_clear');
+    document.getElementById('panic-btn').classList.remove('panic-active');
+    document.getElementById('panic-overlay').classList.remove('active');
+    toast('Panic cleared', 'ok');
+  }
+});
+
+// ── Dispatch ──────────────────────────────────────────────────
+function sendDispatch(text, chId) {
+  if (!text.trim() || !STATE.socket || !STATE.unit) return;
+  const roleInfo = STATE.roles[STATE.unit.role];
+  if (!roleInfo?.canDispatch) { toast('Insufficient permissions for dispatch', 'warn'); return; }
+  STATE.socket.emit('dispatch_msg', { channelId: chId || STATE.activeChannel, text: text.trim() });
+}
+
+document.getElementById('btn-dispatch-send').addEventListener('click', () => {
+  const input = document.getElementById('dispatch-input');
+  const ch = document.getElementById('dispatch-ch-sel').value;
+  sendDispatch(input.value, ch);
+  input.value = '';
+});
+document.getElementById('dispatch-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const ch = document.getElementById('dispatch-ch-sel').value;
+    sendDispatch(e.target.value, ch);
+    e.target.value = '';
+  }
+});
+
+// Right panel dispatch
+document.getElementById('right-btn-send').addEventListener('click', () => {
+  const input = document.getElementById('right-dispatch-input');
+  const ch = document.getElementById('right-dispatch-ch').value;
+  sendDispatch(input.value, ch);
+  input.value = '';
+});
+document.querySelectorAll('.qd-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('right-dispatch-input').value = btn.dataset.msg;
+    document.getElementById('tab-dispatch').querySelector('.dispatch-ch-picker').focus();
+  });
+});
+document.querySelectorAll('.apb-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('right-dispatch-input').value = btn.dataset.msg;
+  });
+});
+
+// ── Status ────────────────────────────────────────────────────
+document.getElementById('status-select').addEventListener('change', e => {
+  if (!STATE.socket) return;
+  STATE.socket.emit('status_update', { code: e.target.value });
+  const labels = {
+    '10-6':'BUSY','10-7':'OUT OF SVC','10-8':'IN SERVICE','10-10':'OFF DUTY',
+    '10-17':'EN ROUTE','10-19':'RTN OFFICE','10-20':'LOCATION','10-23':'ON SCENE',
+    '10-97':'AT STATION','10-99':'EMERGENCY'
+  };
+  document.getElementById('current-status').textContent = `${e.target.value} ● ${labels[e.target.value] || e.target.value}`;
+  const isEmergency = e.target.value === '10-99';
+  document.getElementById('current-status').style.color = isEmergency ? 'var(--red-panic)' : 'var(--green-active)';
+});
+
+// ── Tabs ──────────────────────────────────────────────────────
+document.querySelectorAll('.right-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.right-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Mobile menu
+document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+  document.getElementById('channels-panel').classList.toggle('open');
+});
+
+// Logout
+document.getElementById('btn-logout').addEventListener('click', () => {
+  if (confirm('Disconnect from USMS Radio?')) {
+    if (STATE.socket) STATE.socket.disconnect();
+    location.reload();
+  }
+});
+
+// ── Socket.IO Setup ───────────────────────────────────────────
+function connectSocket() {
+  const socket = io();
+  STATE.socket = socket;
+
+  socket.on('connect', () => {
+    console.log('[socket] connected');
+    document.getElementById('conn-indicator').style.background = 'var(--green-active)';
+  });
+
+  socket.on('disconnect', () => {
+    document.getElementById('conn-indicator').style.background = 'var(--red-panic)';
+    toast('Connection lost — attempting reconnect...', 'warn', 5000);
+  });
+
+  socket.on('logged_in', ({ unit, channels, roles, statuses }) => {
+    STATE.unit = unit;
+    STATE.channels = channels;
+    STATE.roles = roles;
+    STATE.statuses = statuses;
+    STATE.activeChannel = unit.channel;
+
+    // Transition to app
+    document.getElementById('login-screen').style.display = 'none';
+    const appEl = document.getElementById('app');
+    appEl.classList.add('visible');
+
+    // Update topbar
+    document.getElementById('topbar-badge').textContent = roles[unit.role]?.badge || unit.role.toUpperCase();
+    document.getElementById('topbar-callsign').textContent = unit.callsign;
+
+    // Build UI
+    buildChannelList();
+    updateChannelActive();
+
+    // Show dispatch bar if permitted
+    const roleInfo = roles[unit.role];
+    if (roleInfo?.canDispatch) {
+      document.getElementById('dispatch-bar').classList.add('visible');
+    }
+
+    addLog({ type: 'system', content: `Connected as ${unit.callsign} (${roles[unit.role]?.label}) — Channel: ${channels.find(c=>c.id===unit.channel)?.name}`, ts: Date.now() });
+    toast(`Welcome, ${unit.callsign}`, 'ok');
+  });
+
+  socket.on('error', msg => toast(msg, 'warn'));
+
+  socket.on('units_update', units => updateUnitsUI(units));
+
+  socket.on('system_message', ({ text, type, ts }) => {
+    addLog({ type: 'system', subtype: type, content: text, ts });
+  });
+
+  socket.on('ptt_active', ({ unitId, callsign, channelId, ts, monitored }) => {
+    STATE.transmittingUnits.set(unitId, channelId);
+    setChannelTransmitting(channelId, true);
+    // Update unit card
+    const card = document.querySelector(`.unit-card[data-uid="${unitId}"]`);
+    if (card) card.classList.add('transmitting');
+    // Show TX overlay if on same channel or monitored
+    if (channelId === STATE.activeChannel || monitored) {
+      playPTTOpen();
+      const overlay = document.getElementById('tx-overlay');
+      overlay.classList.add('active');
+      document.getElementById('tx-unit-name').textContent = callsign;
+      document.getElementById('tx-on-channel').textContent = '● ' + (STATE.channels.find(c=>c.id===channelId)?.name || channelId) + (monitored ? ' [MON]' : '');
+    }
+    addLog({ type: 'ptt', callsign, channel: channelId, content: 'PTT OPEN', ts });
+  });
+
+  socket.on('ptt_clear', ({ unitId, callsign, channelId, ts }) => {
+    STATE.transmittingUnits.delete(unitId);
+    setChannelTransmitting(channelId, false);
+    const card = document.querySelector(`.unit-card[data-uid="${unitId}"]`);
+    if (card) card.classList.remove('transmitting');
+    if (channelId === STATE.activeChannel || STATE.monitorChannels.includes(channelId)) {
+      playPTTClose();
+      document.getElementById('tx-overlay').classList.remove('active');
+    }
+    addLog({ type: 'ptt', callsign, channel: channelId, content: 'PTT CLOSED', ts });
+  });
+
+  socket.on('dispatch_msg', ({ from, role, channelId, text, ts, monitored }) => {
+    playDispatchMsg();
+    addLog({ type: 'dispatch', callsign: from, channel: channelId, content: text, ts });
+    if (channelId !== STATE.activeChannel) {
+      const chName = STATE.channels.find(c=>c.id===channelId)?.name || channelId;
+      toast(`[${chName}] ${from}: ${text.substring(0,60)}`, 'info', 5000);
+    }
+  });
+
+  socket.on('status_log', ({ callsign, code, label, ts }) => {
+    addLog({ type: 'status', callsign, content: `Status: ${code} — ${label}`, ts });
+  });
+
+  socket.on('panic_alert', ({ unitId, callsign, role, channel, ts }) => {
+    playPanic();
+    const chName = STATE.channels.find(c=>c.id===channel)?.name || channel;
+    addLog({ type: 'panic', callsign, channel, content: `⚠ PANIC ACTIVATED — Officer in distress on ${chName}`, ts });
+    document.getElementById('panic-overlay').classList.add('active');
+    const banner = document.getElementById('panic-banner');
+    banner.classList.add('active');
+    document.getElementById('panic-banner-detail').textContent = `${callsign} — ${STATE.roles[role]?.label || role} — CH: ${chName}`;
+    toast(`⚠ PANIC: ${callsign} on ${chName}`, 'panic', 0);
+  });
+
+  socket.on('panic_cleared', ({ callsign, ts }) => {
+    document.getElementById('panic-overlay').classList.remove('active');
+    document.getElementById('panic-banner').classList.remove('active');
+    addLog({ type: 'status', callsign, content: 'Panic cleared — Unit back in service', ts });
+    toast(`Panic cleared by ${callsign}`, 'ok');
+  });
+
+  socket.on('monitor_update', (channels) => {
+    STATE.monitorChannels = channels;
+    document.querySelectorAll('.monitor-btn').forEach(btn => {
+      btn.classList.toggle('monitoring', channels.includes(btn.dataset.ch));
+    });
+  });
+
+  // WebRTC (simplified relay for demo)
+  socket.on('webrtc_offer', async ({ from, offer, channelId }) => {
+    if (channelId !== STATE.activeChannel) return;
+    const pc = createPeerConn(from);
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    if (STATE.localStream) STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit('webrtc_answer', { to: from, answer });
+  });
+  socket.on('webrtc_answer', async ({ from, answer }) => {
+    const pc = STATE.peerConnections.get(from);
+    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  });
+  socket.on('webrtc_ice', ({ from, candidate }) => {
+    const pc = STATE.peerConnections.get(from);
+    if (pc && candidate) pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(()=>{});
+  });
+}
+
+function createPeerConn(peerId) {
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  STATE.peerConnections.set(peerId, pc);
+  pc.onicecandidate = e => {
+    if (e.candidate) STATE.socket.emit('webrtc_ice', { to: peerId, candidate: e.candidate });
+  };
+  pc.ontrack = e => {
+    const audio = new Audio();
+    audio.srcObject = e.streams[0];
+    audio.play().catch(()=>{});
+  };
+  return pc;
+}
+
+// ── Login ─────────────────────────────────────────────────────
+document.getElementById('btn-login').addEventListener('click', () => {
+  const callsign = document.getElementById('inp-callsign').value.trim();
+  const username = document.getElementById('inp-username').value.trim();
+  const role = document.getElementById('inp-role').value;
+  if (!callsign) { toast('Callsign is required', 'warn'); return; }
+  if (!username) { toast('Display name is required', 'warn'); return; }
+  connectSocket();
+  setTimeout(() => {
+    STATE.socket.emit('login', { callsign, role, username });
+  }, 400);
+});
+document.getElementById('inp-callsign').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-login').click();
+});
+document.getElementById('inp-username').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-login').click();
+});
+
+// Pre-fill for demo
+document.getElementById('inp-callsign').value = 'MARSHAL-' + Math.floor(Math.random()*90+10);
+document.getElementById('inp-username').value = 'Agent';
+</script>
+</body>
+</html>

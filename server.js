@@ -200,6 +200,19 @@ io.on('connection', (socket) => {
 app.get('/api/channels', (_, res) => res.json(CHANNELS));
 app.get('/api/units', (_, res) => res.json([...units.values()]));
 app.get('/api/log', (_, res) => res.json(transmissions.slice(-200)));
+app.get('/api/ice', (_, res) => res.json([
+  { urls: 'stun:stun.l.google.com:19302' },
+  {
+    urls: 'turn:global.relay.metered.ca:80',
+    username: 'e0d0e7b687dfcb11d526e170',
+    credential: 'N5KHJLofc/svUNLd'
+  },
+  {
+    urls: 'turn:e0d0e7b687dfcb11d526e170:443?transport=tcp',
+    username: 'e0d0e7b687dfcb11d526e170',
+    credential: 'N5KHJLofc/svUNLd'
+  }
+]));
 app.get('/health', (_, res) => res.json({ ok: true, units: units.size }));
 
 // ─── Start ────────────────────────────────────────────────────────────────────

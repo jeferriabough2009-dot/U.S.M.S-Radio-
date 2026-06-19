@@ -1304,18 +1304,45 @@ async function startPTT() {
   document.getElementById('ptt-status').classList.add('tx-active');
   STATE.socket.emit('ptt_start', { channelId: STATE.activeChannel });
   playPTTOpen();
-  // Mic
   try {
     if (!STATE.localStream) {
       STATE.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     }
     startVU(STATE.localStream);
-    // Offer to peers on channel
-    // (simplified: broadcast via server; in production use proper WebRTC mesh)
+    // Hardcoded Metered TURN + STUN servers
+    const iceServers = [
+      { urls: "stun:stun.relay.metered.ca:80" },
+      { urls: "turn:global.relay.metered.ca:80",              username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+      { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+      { urls: "turn:global.relay.metered.ca:443",              username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+      { urls: "turns:global.relay.metered.ca:443?transport=tcp",username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+    ];
+    // Send WebRTC offer to every other unit on the same channel
+    const peersOnChannel = (STATE.allUnits || [])
+      .filter(u => u.channel === STATE.activeChannel && u.id !== STATE.socket.id);
+    for (const peer of peersOnChannel) {
+      await sendOfferToPeer(peer.id, iceServers);
+    }
   } catch (e) {
-    console.warn('Mic not available:', e);
+    console.warn('Mic/WebRTC error:', e);
   }
   addLog({ type: 'ptt', callsign: STATE.unit.callsign, channel: STATE.activeChannel, content: 'PTT OPEN — transmitting', ts: Date.now() });
+}
+
+async function sendOfferToPeer(peerId, iceServers) {
+  try {
+    if (STATE.peerConnections.has(peerId)) {
+      STATE.peerConnections.get(peerId).close();
+      STATE.peerConnections.delete(peerId);
+    }
+    const pc = createPeerConn(peerId, iceServers);
+    STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    STATE.socket.emit('webrtc_offer', { to: peerId, offer, channelId: STATE.activeChannel });
+  } catch(e) {
+    console.warn('Offer failed for peer', peerId, e);
+  }
 }
 
 function stopPTT() {
@@ -1490,7 +1517,7 @@ function connectSocket() {
 
   socket.on('error', msg => toast(msg, 'warn'));
 
-  socket.on('units_update', units => updateUnitsUI(units));
+  socket.on('units_update', units => { STATE.allUnits = units; updateUnitsUI(units); });
 
   socket.on('system_message', ({ text, type, ts }) => {
     addLog({ type: 'system', subtype: type, content: text, ts });
@@ -1563,11 +1590,25 @@ function connectSocket() {
     });
   });
 
-  // WebRTC (simplified relay for demo)
+  // WebRTC signaling
   socket.on('webrtc_offer', async ({ from, offer, channelId }) => {
     if (channelId !== STATE.activeChannel) return;
-    const pc = createPeerConn(from);
+    // Hardcoded Metered TURN + STUN servers
+    const iceServers = [
+      { urls: "stun:stun.relay.metered.ca:80" },
+      { urls: "turn:global.relay.metered.ca:80",              username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+      { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+      { urls: "turn:global.relay.metered.ca:443",              username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+      { urls: "turns:global.relay.metered.ca:443?transport=tcp",username: "e0d0e7b687dfcb11d526e170", credential: "N5KHJLofc/svUNLd" },
+    ];
+    // Close stale connection if any
+    if (STATE.peerConnections.has(from)) {
+      STATE.peerConnections.get(from).close();
+      STATE.peerConnections.delete(from);
+    }
+    const pc = createPeerConn(from, iceServers);
     await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    // Add local mic if we have it (so this is a proper 2-way or 1-way works either way)
     if (STATE.localStream) STATE.localStream.getTracks().forEach(t => pc.addTrack(t, STATE.localStream));
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -1583,17 +1624,30 @@ function connectSocket() {
   });
 }
 
-async function createPeerConn(peerId) {
-  const iceRes = await fetch('/api/ice');
-  const iceServers = await iceRes.json();
+function createPeerConn(peerId, iceServers) {
+  iceServers = iceServers || [{ urls: 'stun:stun.l.google.com:19302' }];
+  const pc = new RTCPeerConnection({ iceServers });
   STATE.peerConnections.set(peerId, pc);
   pc.onicecandidate = e => {
     if (e.candidate) STATE.socket.emit('webrtc_ice', { to: peerId, candidate: e.candidate });
   };
   pc.ontrack = e => {
-    const audio = new Audio();
+    // Reuse or create audio element per peer so we don't stack duplicates
+    let audio = document.getElementById('audio-peer-' + peerId);
+    if (!audio) {
+      audio = new Audio();
+      audio.id = 'audio-peer-' + peerId;
+      audio.autoplay = true;
+      document.body.appendChild(audio);
+    }
     audio.srcObject = e.streams[0];
     audio.play().catch(()=>{});
+  };
+  pc.onconnectionstatechange = () => {
+    console.log('[WebRTC]', peerId, pc.connectionState);
+    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      STATE.peerConnections.delete(peerId);
+    }
   };
   return pc;
 }

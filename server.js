@@ -200,20 +200,19 @@ io.on('connection', (socket) => {
 app.get('/api/channels', (_, res) => res.json(CHANNELS));
 app.get('/api/units', (_, res) => res.json([...units.values()]));
 app.get('/api/log', (_, res) => res.json(transmissions.slice(-200)));
-app.get('/api/ice', (_, res) => res.json([
-  { urls: 'stun:stun.l.google.com:19302' },
-  {
-    urls: 'turn:global.relay.metered.ca:80',
-    username: 'e0d0e7b687dfcb11d526e170',
-    credential: 'N5KHJLofc/svUNLd'
-  },
-  {
-    urls: 'turn:e0d0e7b687dfcb11d526e170:443?transport=tcp',
-    username: 'e0d0e7b687dfcb11d526e170',
-    credential: 'N5KHJLofc/svUNLd'
-  }
-]));
 app.get('/health', (_, res) => res.json({ ok: true, units: units.size }));
+
+// ICE server config — set TURN_HOST, TURN_USER, TURN_PASS as environment variables on Render
+app.get('/api/ice', (_, res) => {
+  const servers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  if (process.env.TURN_HOST && process.env.TURN_USER && process.env.TURN_PASS) {
+    servers.push(
+      { urls: `turn:${process.env.TURN_HOST}:80`,              username: process.env.TURN_USER, credential: process.env.TURN_PASS },
+      { urls: `turn:${process.env.TURN_HOST}:443?transport=tcp`, username: process.env.TURN_USER, credential: process.env.TURN_PASS }
+    );
+  }
+  res.json(servers);
+});
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;

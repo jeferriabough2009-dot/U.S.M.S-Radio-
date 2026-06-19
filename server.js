@@ -46,17 +46,31 @@ const STATUS_CODES = {
   '10-99': 'Emergency',
 };
 
+// ─── Password gate ────────────────────────────────────────────────────────────
+// Roles that require the shared staff password
+const RESTRICTED_ROLES = new Set(['dispatch', 'supervisor', 'deputy_director', 'director']);
+// Set your password here (or use env var STAFF_PASSWORD)
+const STAFF_PASSWORD = process.env.STAFF_PASSWORD || 'USMS2025';
+
 const units = new Map();      // socketId → unit object
 const panicUnits = new Set(); // socketIds with active panic
 const transmissions = [];     // log
+const mapPins = new Map();    // pinId → pin object (persistent across sessions)
 
 // ─── Socket.IO ───────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log(`[+] Socket connected: ${socket.id}`);
 
   // Login
-  socket.on('login', ({ callsign, role, username }) => {
+  socket.on('login', ({ callsign, role, username, password }) => {
     if (!ROLES[role]) { socket.emit('error', 'Invalid role'); return; }
+    // Password gate for restricted roles
+    if (RESTRICTED_ROLES.has(role)) {
+      if (!password || password !== STAFF_PASSWORD) {
+        socket.emit('login_failed', { reason: 'Incorrect staff password. Contact your supervisor.' });
+        return;
+      }
+    }
     const unit = {
       id: socket.id,
       callsign: callsign.toUpperCase(),
@@ -69,7 +83,7 @@ io.on('connection', (socket) => {
     };
     units.set(socket.id, unit);
     socket.join(unit.channel);
-    socket.emit('logged_in', { unit, channels: CHANNELS, roles: ROLES, statuses: STATUS_CODES });
+    socket.emit('logged_in', { unit, channels: CHANNELS, roles: ROLES, statuses: STATUS_CODES, existingPins: [...mapPins.values()] });
     io.emit('units_update', [...units.values()]);
     io.emit('system_message', { text: `${unit.callsign} (${ROLES[role].label}) is online`, type: 'join', ts: Date.now() });
     console.log(`[+] ${unit.callsign} logged in as ${role}`);
@@ -181,6 +195,45 @@ io.on('connection', (socket) => {
     else unit.monitorChannels.splice(idx, 1);
     units.set(socket.id, unit);
     socket.emit('monitor_update', unit.monitorChannels);
+  });
+
+  // Map pins
+  socket.on('map_pin_add', ({ x, y, label, color }) => {
+    const unit = units.get(socket.id);
+    if (!unit) return;
+    const pin = {
+      id: `pin_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+      x, y, label: label || unit.callsign,
+      color: color || '#e74c3c',
+      callsign: unit.callsign,
+      role: unit.role,
+      ts: Date.now(),
+    };
+    mapPins.set(pin.id, pin);
+    io.emit('map_pin_added', pin);
+    console.log(`[MAP] Pin added by ${unit.callsign} at (${x.toFixed(2)}, ${y.toFixed(2)})`);
+  });
+
+  socket.on('map_pin_remove', ({ pinId }) => {
+    const unit = units.get(socket.id);
+    if (!unit) return;
+    const pin = mapPins.get(pinId);
+    // Only pin owner or supervisor+ can remove
+    const roleLevel = ROLES[unit.role]?.level || 0;
+    if (pin && (pin.callsign === unit.callsign || roleLevel >= 3)) {
+      mapPins.delete(pinId);
+      io.emit('map_pin_removed', { pinId });
+    }
+  });
+
+  socket.on('map_pin_clear_all', () => {
+    const unit = units.get(socket.id);
+    if (!unit) return;
+    const roleLevel = ROLES[unit.role]?.level || 0;
+    if (roleLevel >= 3) { // supervisor+
+      mapPins.clear();
+      io.emit('map_pins_cleared');
+    }
   });
 
   // Disconnect
